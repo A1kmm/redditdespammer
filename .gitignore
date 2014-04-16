@@ -1,0 +1,9 @@
+*~
+journal
+target
+.idea
+.ensime
+.ensime_lucene
+*.iml
+config.properties
+
