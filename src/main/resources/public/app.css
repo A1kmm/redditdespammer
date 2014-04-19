@@ -1,0 +1,27 @@
+.contentarea {
+    background-color: #ddd;
+    height: 100%;
+    overflow: auto;
+}
+.navcontainer {
+    background-color: #eee;
+    height: 100%;
+}
+.navcontainer > h1 {
+    font-size: 14pt;
+}
+.fullheight {
+  height: 100%;
+}
+body > .ember-view {
+  height: 100%;
+}
+body > .ember-view > .ember-view {
+  height: 100%;
+}
+form > .ember-view {
+  display: inline;
+}
+.panel {
+  margin-top: 5px;
+}

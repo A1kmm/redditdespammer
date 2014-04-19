@@ -1,10 +1,120 @@
-<html>
+<!DOCTYPE html>
+<html class="fullheight">
   <head>
       <title>Management Console</title>
+      <link type="text/css" rel="stylesheet" href="bootstrap-3.1.1-dist/css/bootstrap-theme.min.css"/>
+      <link type="text/css" rel="stylesheet" href="bootstrap-3.1.1-dist/css/bootstrap.min.css"/>
+      <link type="text/css" rel="stylesheet" href="app.css"/>
   </head>
-  <body>
-    <p>
-        Test 123
-    </p>
+  <body class="fullheight">
+  <script type="text/x-handlebars" data-template-name="components/rd-page">
+    <div class="container contentarea">
+        <h1>{{title}}</h1>
+        {{#if error.length}}
+        <div class="alert alert-danger">{{error}}</div>
+        {{/if}}
+        {{yield}}
+    </div>
+  </script>
+  <script type="text/x-handlebars" data-template-name="components/rd-authpage">
+    <div class="container fullheight"><div class="row fullheight">
+        <div class="col-md-3 navcontainer fullheight">
+          <h1>Management Console</h1>
+          <ul class="nav">
+            <li><a href="#/user/me/1">Users</a></li>
+          </ul>
+        </div>
+        <div class="col-md-9 contentarea">
+            <h1>{{title}}</h1>
+            {{#if error.length}}
+            <div class="alert alert-danger">{{error}}</div>
+            {{/if}}
+            {{yield}}
+        </div>
+    </div></div>
+  </script>
+  <script type="text/x-handlebars" data-template-name="components/rd-form">
+    <form role="form">
+       {{yield}}
+       <p><button {{bind-attr disabled=disabled}}
+                  class="btn btn-primary" {{action "submit"}}>{{submitName}}</button></p>
+    </form>{{valid}}
+  </script>
+  <script type="text/x-handlebars" data-template-name="components/rd-form-i">
+    <form role="form" class="form-inline">
+       {{yield}}
+       <button {{bind-attr disabled=disabled}}
+                  class="btn btn-primary" {{action "submit"}}>{{submitName}}</button>
+    </form>{{valid}}
+  </script>
+  <script type="text/x-handlebars" data-template-name="components/rd-control">
+      <p><div {{bind-attr class=":form-row valid:has-success:has-error"}}>
+        <label class="" {{bind-attr for=inpname}}>{{descr}}</label> {{error}}
+        {{input type=type class="form-control" id=inpname value=attr placeholder=descr}}
+      </div></p>
+  </script>
+  <script type="text/x-handlebars" data-template-name="components/rd-control-i">
+      <div {{bind-attr class=":form-group valid:has-success:has-error"}}>
+        <label class="sr-only" {{bind-attr for=inpname}}>{{descr}}</label>
+        {{input type=type class="form-control" id=inpname value=attr placeholder=descr}}
+      </div>
+  </script>
+  <script type="text/x-handlebars" data-template-name="login">
+    {{#rd-page title="Login to the app" error=error}}
+      {{#rd-form submitName="Login" submit="attemptLogin" disabled=invalid }}
+        {{rd-control type="text" inpname="username" descr="Username" attr=username error=usernameError valid=usernameValid}}
+        {{rd-control type="password" inpname="password" descr="Password" attr=password error=passwordError valid=passwordValid}}
+      {{/rd-form}}
+    {{/rd-page}}
+  </script>
+  <script type="text/x-handlebars" data-template-name="user">
+    {{#rd-authpage title="Manage Users" error=error}}
+      {{#rd-form-i submitName="View Details" submit="viewUser" disabled=newUsernameInvalid}}
+        {{rd-control-i inpname="newUsername" descr="Username" attr=newUsername error=newUsernameError valid=newUsernameValid}}
+        <button class="btn" {{bind-attr disabled=newUsernameInvalid}} {{action "createUser"}}>Create User</button>
+      {{/rd-form-i}}
+      {{#if error.length}}{{else}}
+      <div class="panel panel-default">
+        <div class="panel-heading">User details</div>
+        <div class="panel-body">
+          <dl class="dl-horizontal">
+            <dt>Username</dt><dd>{{username}}</dd>
+            <dt>Status</dt><dd>{{status}}</dd>
+            {{#each permissions}}
+              <dt>{{permission}} on bot {{bot}}, subreddit {{subreddit}}</dt><dd>Yes</dd>
+            {{/each}}
+          </dl>
+        </div>
+      </div>
+      {{/if}}
+
+    <div id="createUserDialog" class="modal fade">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+            <h4 class="modal-title">Create User</h4>
+          </div>
+          <div class="modal-body">
+            {{#if createError.length}}
+            <div class="alert alert-danger">{{createError}}</div>
+            {{/if}}
+            {{#rd-form submitName="Create User" submit="confirmCreateUser" disabled=createUserInvalid }}
+               {{rd-control type="text" inpname="createNewUsername" descr="Username" attr=newUsername error=newUsernameError valid=newUsernameValid}}
+               {{rd-control type="password" inpname="newPassword" descr="Password" attr=newPassword error=newPasswordError valid=newPasswordValid}}
+            {{/rd-form}}
+          </div>
+        </div>
+      </div>
+    </div>
+    {{/rd-authpage}}
+  </script>
+  <script type="text/javascript" src="jquery-2.1.0.min.js"></script>
+  <script type="text/javascript" src="bootstrap-3.1.1-dist/js/bootstrap.js"></script>
+  <script type="text/javascript" src="handlebars-v1.3.0.js"></script>
+  <script type="text/javascript" src="lodash.min.js"></script>
+  <script type="text/javascript" src="ember.js"></script>
+  <script type="text/javascript" src="ember-data.min.js"></script>
+  <script type="text/javascript" src="app.js"></script>
   </body>
 </html>

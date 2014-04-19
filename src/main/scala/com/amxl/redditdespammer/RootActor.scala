@@ -21,7 +21,8 @@ case object StringNotBanned
 case class Start()
 class RootActor extends Actor {
   val manageStore = context.actorOf(Props[AdminCommandPersister], "manageStore")
-  val manageConsole = context.actorOf(Props(classOf[ManageConsole], manageStore), "manageConsole")
+  val sessionTracker = context.actorOf(Props(classOf[SessionTracker], manageStore), "sessionTracker")
+  val manageConsole = context.actorOf(Props(classOf[ManageConsole], manageStore, sessionTracker), "manageConsole")
 
   val rateLimitedRedditClient = context.actorOf(Props(classOf[TimerBasedThrottler], Rate(5, 10 seconds)),
     "rateLimitedRedditClient")

@@ -19,9 +19,11 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-contrib" % "2.3.0",
   "com.typesafe.akka" %% "akka-persistence-experimental" % "2.3.0",
   "joda-time" % "joda-time" % "2.3",
+  "org.joda" % "joda-convert" % "1.6",
   "org.json4s" %% "json4s-native" % "3.2.7",
   "org.mindrot" % "jbcrypt" % "0.3m",
-  "org.json4s" %% "json4s-jackson" % "3.2.8"
+  "org.json4s" %% "json4s-jackson" % "3.2.8",
+  "commons-codec" % "commons-codec" % "1.9"
 )
 
 resolvers += "spray repo" at "http://repo.spray.io"
