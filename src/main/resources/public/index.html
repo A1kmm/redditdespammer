@@ -26,6 +26,9 @@
         </div>
         <div class="col-md-9 contentarea">
             <h1>{{title}}</h1>
+            {{#if success.length}}
+            <div class="alert alert-success">{{success}}</div>
+            {{/if}}
             {{#if error.length}}
             <div class="alert alert-danger">{{error}}</div>
             {{/if}}
@@ -68,22 +71,54 @@
     {{/rd-page}}
   </script>
   <script type="text/x-handlebars" data-template-name="user">
-    {{#rd-authpage title="Manage Users" error=error}}
+    {{#rd-authpage title="Manage Users" error=error success=success}}
       {{#rd-form-i submitName="View Details" submit="viewUser" disabled=newUsernameInvalid}}
         {{rd-control-i inpname="newUsername" descr="Username" attr=newUsername error=newUsernameError valid=newUsernameValid}}
         <button class="btn" {{bind-attr disabled=newUsernameInvalid}} {{action "createUser"}}>Create User</button>
       {{/rd-form-i}}
-      {{#if error.length}}{{else}}
+      {{#if pageError}}{{else}}
       <div class="panel panel-default">
         <div class="panel-heading">User details</div>
         <div class="panel-body">
-          <dl class="dl-horizontal">
-            <dt>Username</dt><dd>{{username}}</dd>
-            <dt>Status</dt><dd>{{status}}</dd>
+          <table>
+            <tr><th>Username</th><td>{{username}}</td></tr>
+            <tr><th>Status</th>
+                <td>{{status}}</td>
+                <td>
+                  {{#if canBlock}}
+                    Block button
+                  {{else}}
+                    {{#if canUnblock}}
+                      Unblock button
+                    {{/if}}
+                  {{/if}}
+                </td>
+            </tr>
             {{#each permissions}}
-              <dt>{{permission}} on bot {{bot}}, subreddit {{subreddit}}</dt><dd>Yes</dd>
+              <tr><th>{{permission}}, bot {{bot}}, subreddit {{subreddit}}</th><td>Yes</td></tr>
             {{/each}}
-          </dl>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel panel-default">
+        <div class="panel-heading">Change password</div>
+        <div class="panel-body">
+          {{#rd-form submitName="Change" submit="changePassword" disabled=changePasswordInvalid}}
+            {{rd-control type="password" inpname="changeNewPassword" descr="Password" attr=newPassword error=newPasswordError valid=newPasswordValid}}
+            {{rd-control type="password" inpname="changeNewPassword2" descr="Password (confirm)" attr=newPassword2 error=newPassword2Error valid=newPassword2Valid}}
+          {{/rd-form}}
+        </div>
+      </div>
+
+      <div class="panel panel-default">
+        <div class="panel-heading">Grant Permissions</div>
+        <div class="panel-body">
+          {{#rd-form-i submitName="Add" submit="addPermission" disabled=addPermissionInvalid}}
+            {{rd-control-i type="text" inpname="bot" descr="Bot (or all)" attr=bot error=botError valid=botValid}}
+            {{rd-control-i type="text" inpname="subreddit" descr="Subreddit (or all)" attr=subreddit error=subredditError valid=subredditValid}}
+            {{view Ember.Select content=possiblePermissions value=permission}}
+          {{/rd-form-i}}
         </div>
       </div>
       {{/if}}

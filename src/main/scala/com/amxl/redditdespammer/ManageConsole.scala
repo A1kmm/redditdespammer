@@ -18,8 +18,8 @@ class ManageConsole(val adminCommandPersister : ActorRef, val sessionTracker : A
   implicit val system = context.system
   implicit val formats = new DefaultFormats {
     override val typeHints = ShortTypeHints(
-      CommandInformation.userAccesibleQueryTypes ++ CommandInformation.userAccessibleCommandTypes ++
-      CommandInformation.responseTypes
+      (CommandInfo.commandClasses ++ CommandInfo.queryClasses ++ CommandInfo.permissionClasses
+        ++ CommandInfo.commandResponseClasses).toList
     )
     override val typeHintFieldName = "type"
   }
@@ -34,7 +34,6 @@ class ManageConsole(val adminCommandPersister : ActorRef, val sessionTracker : A
   val routes = {
     pathPrefix("api") {
       path("command") { post { ctx =>
-        val httpSender = sender()
         parseJson(ctx.request.entity.asString).extractOpt[Command] match {
           case Some(command) =>
             sessionTracker ! RenewSession(command.sessionId)

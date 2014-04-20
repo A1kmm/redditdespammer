@@ -16,22 +16,30 @@ function addValidityChecks(obj, needValidation, groups) {
     }
     var newProperties = {};
     var propertyNames = [];
+
     _.map(needValidation, function(validators, propertyName) {
-        newProperties[propertyName + "Valid"] = function() {
+        var dependProperties = _.flatten(_.filter(_.pluck(validators, 'extraProperties')));
+        dependProperties.push(propertyName);
+        var valFn = function() {
             var value = this.get(propertyName);
-            return _.every(_.map(validators, function(validator) { return validator(value) === true; }));
-        }.property(propertyName);
+            var model = this;
+            return _.every(_.map(validators, function(validator) { return validator(value, model) === true; }));
+        };
+        newProperties[propertyName + "Valid"] = valFn.property.apply(valFn, dependProperties);
 
         newProperties[propertyName + "Invalid"] = function() {
             return !this.get(propertyName + "Valid");
         }.property(propertyName + "Valid");
 
-        newProperties[propertyName + "Error"] = function() {
+        var errFn = function() {
+            var model = this;
             var value = this.get(propertyName);
-            return _.find(_.map(validators, function(validator) { return validator(value); }), function(v) {
+            return _.find(_.map(validators, function(validator) { return validator(value, model); }), function(v) {
                 return v !== true;
             });
-        }.property(propertyName);
+        }
+
+        newProperties[propertyName + "Error"] = errFn.property.apply(errFn, dependProperties);
 
         propertyNames.push(propertyName + "Valid");
     });
@@ -45,18 +53,19 @@ function addValidityChecks(obj, needValidation, groups) {
     newProperties.valid = validFn.property.apply(validFn, propertyNames);
     newProperties.invalid = function() { return !this.get('valid'); }.property('valid');
 
-    for (var groupName in groups) {
-        validFn = (function() {
+    _.map(groups, function(groupValues, groupName) {
+        var groupValues = groups[groupName];
+        var validFn = (function() {
             var that = this;
-            return _.all(_.map(groups[groupName],
+            return _.all(_.map(groupValues,
                 function(propertyName) {
-                    return that.get(propertyName);
+                    return that.get(propertyName + "Valid");
                 }));
         });
-        newProperties[groupName + 'Valid'] = validFn.property.apply(validFn, groups[groupName]);
+        newProperties[groupName + 'Valid'] = validFn.property.apply(validFn, groupValues);
         newProperties[groupName + 'Invalid'] = function() { return !this.get(groupName + 'Valid'); }
            .property(groupName + 'Valid');
-    }
+    });
 
     return _.extend(obj, newProperties);
 }
@@ -87,6 +96,7 @@ function sendQuery(data) {
 }
 
 function setupController(controller, model) {
+    model.set("pageError", false);
     if (model.get('type') == "CommandFailed") {
         if (model.get('msg') == "Your session is invalid") {
           // Ember seems to only allow one nested transitionToRoute (e.g. front page -> user -> login doesn't work),
@@ -95,8 +105,10 @@ function setupController(controller, model) {
             controller.transitionToRoute("login");
           }, 0);
           return;
-        } else
+        } else {
           model.set("error", model.get('msg'));
+          model.set("pageError", true);
+        }
     }
     controller.set("model", model);
 }
@@ -157,9 +169,30 @@ App.LoginController = Ember.ObjectController.extend({
     }
 });
 
-App.User = Ember.Object.extend(addValidityChecks({ newUsername: "", newPassword: "" },
-      {'newUsername': [validateNotEmpty], 'newPassword': [validateNotEmpty]},
-      {'createUser': ['newUsername', 'newPassword']}
+function validatePasswordsDifferent(value, model) {
+    var otherValue = model.get('newPassword');
+    if (otherValue != value)
+      return "Passwords don't match";
+    return true;
+}
+validatePasswordsDifferent.extraProperties = ["newPassword"];
+
+App.User = Ember.Object.extend(addValidityChecks({
+    newUsername: "", newPassword: "", newPassword2: "",
+    bot: "", subreddit: "",
+    canBlock: function() {
+        return this.get('status') == 'Active';
+    }.property('status'),
+    canUnblock: function() {
+        return this.get('status') == 'Blocked';
+    }.property('status')
+                },
+      {'newUsername': [validateNotEmpty], 'newPassword': [validateNotEmpty],
+       'newPassword2': [validateNotEmpty, validatePasswordsDifferent],
+       'bot': [validateNotEmpty], 'subreddit': [validateNotEmpty]
+      },
+      {'createUser': ['newUsername', 'newPassword'], 'changePassword': ['newPassword', 'newPassword2'],
+       'addPermission': ['bot', 'subreddit']}
     ));
 App.UserRoute = Ember.Route.extend({
     model: function(params) {
@@ -171,6 +204,7 @@ App.UserRoute = Ember.Route.extend({
     },
     setupController: setupController
 });
+
 App.UserController = Ember.ObjectController.extend({
     actions: {
         createUser: function() {
@@ -190,6 +224,33 @@ App.UserController = Ember.ObjectController.extend({
         },
         viewUser: function() {
             this.transitionToRoute('user', this.get('newUsername'), randomVersion());
+        },
+        changePassword: function() {
+            var controller = this;
+            sendCommand({type: "SetPassword", password: this.get('newPassword'), username: this.get('userparam')})
+              .then(function(resp) {
+                if (resp.success) {
+                    controller.set('error', '');
+                    controller.set('success', 'Password changed');
+                } else {
+                    controller.set('success', '');
+                    controller.set('error', resp.message);
+                }
+              });
+        },
+        addPermission: function() {
+            var controller = this;
+            sendCommand({type: "GrantAccess", username: this.get('username'),
+                         bot: this.get('bot'), subreddit: this.get('subreddit'),
+                         permission: {type: this.get('permission')}})
+                .then(function(resp) {
+                    if (resp.success) {
+                       controller.transitionToRoute('user', controller.get('userparam'), randomVersion());
+                    } else {
+                        controller.set('success', '');
+                        controller.set('error', resp.message);
+                    }
+                });
         }
     }
 });

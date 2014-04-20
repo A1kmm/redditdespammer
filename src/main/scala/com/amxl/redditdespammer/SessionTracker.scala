@@ -8,7 +8,6 @@ import java.security.SecureRandom
 import org.apache.commons.codec.binary.Base64
 import scala.language.postfixOps
 
-case class SessionStarted(username: String, sessionId: String) extends CommandResponse
 case class SessionEnded(sessionId: String)
 case class CreateSession(username: String, password: String)
 case class RenewSession(sessionId: String)

@@ -8,75 +8,11 @@ import scala._
 import scala.Some
 import scala.concurrent.Future
 
-sealed class Permission
-case object GrantAccessPermission extends Permission
-case object RevokeAccessPermission extends Permission
-case object AddUserPermission extends Permission
-case object SetPasswordPermission extends Permission
-case object BlockUserPermission extends Permission
-case object UnblockUserPermission extends Permission
-case object AddBotPermission extends Permission
-case object DeleteBotPermission extends Permission
-case object AddSubredditPermission extends Permission
-case object DeleteSubredditPermission extends Permission
-case object AddExemptUserPermission extends Permission
-case object DeleteExemptUserPermission extends Permission
-case object AddBannedPhrasePermission extends Permission
-case object DeleteBannedPhrasePermission extends Permission
-
-case object ShowUsersAndAccessPermission extends Permission
-case object ListBotsPermission extends Permission
-case object ListSubredditsPermission extends Permission
-case object ListExemptUsersPermission extends Permission
-case object ListBannedPhrasesPermission extends Permission
-case object ShowAccessForUserPermission extends Permission
-
-abstract sealed class Command {
-  val sessionId: String
-}
-case class GrantAccess(sessionId: String, username: String, bot: String, subreddit: String, permission: Permission) extends Command
-case class RevokeAccess(sessionId: String, username: String, bot: String, subreddit: String, permission: Permission) extends Command
-case class AddUser(sessionId: String, username: String, password: String) extends Command
-case class SetPassword(sessionId: String, username: String, password: String) extends Command
-case class BlockUser(sessionId: String, username: String) extends Command
-case class UnblockUser(sessionId: String, username: String) extends Command
-case class AddBot(sessionId: String, bot: String, redditUsername: String, redditPassword: String) extends Command
-case class DeleteBot(sessionId: String, bot: String) extends Command
-case class AddSubreddit(sessionId: String, bot: String, subreddit: String) extends Command
-case class DeleteSubreddit(sessionId: String, bot: String, subreddit: String) extends Command
-case class AddExemptUser(sessionId: String, bot: String, subreddit: String, username: String) extends Command
-case class DeleteExemptUser(sessionId: String, bot: String, subreddit: String, username: String) extends Command
-case class AddBannedPhrase(sessionId: String, bot: String, subreddit: String, phrase: String) extends Command
-case class DeleteBannedPhrase(sessionId: String, bot: String, subreddit: String, phrase: String) extends Command
-
-abstract sealed class Query {
-  val sessionId: String
-}
 case class CheckCredentials(username: String, password: String)
-case class ShowUsersAndAccess(sessionId: String, bot: String, subreddit: String) extends Query
-case class ShowAccessForUser(sessionId: String, user: String) extends Query
-case class ListBots(sessionId: String) extends Query
-case class ListSubreddits(sessionId: String, bot: String) extends Query
-case class ListExemptUsers(sessionId: String, bot: String, subreddit: String) extends Query
-case class ListBannedPhrases(sessionId: String, bot: String, subreddit: String) extends Query
 
 class AdminCommandReceiver(persister: ActorRef) extends Actor {
   def receive: Receive = { case (x: Command) => persister forward Persistent(x) }
 }
-
-case class PermissionForUser(permission: String, bot: String, subreddit: String)
-
-class CommandResponse
-case class CommandSucceeded(followupWith: Command) extends CommandResponse
-case class CommandFailed(msg: String) extends CommandResponse
-case class CredentialsValid()
-case class PermissionsResult(permissions: List[Permission]) extends CommandResponse
-case class PermissionsForUserResult(username: String, permissions: List[PermissionForUser],
-                                     status: String) extends CommandResponse
-case class BotsResult(bots: List[String]) extends CommandResponse
-case class SubredditsResult(subreddits: List[String]) extends CommandResponse
-case class ExemptUsersResult(subreddits: List[String]) extends CommandResponse
-case class BannedPhrasesResult(subreddits: List[String]) extends CommandResponse
 
 case class PrecheckCommand(command: Command)
 
@@ -85,20 +21,6 @@ case object SubredditAccess extends PermissionScope
 case object BotwideAccess extends PermissionScope
 case object GlobalAccess extends PermissionScope
 case object NoAccess extends PermissionScope
-
-object CommandInformation {
-  val userAccessibleCommandTypes = List(classOf[GrantAccess], classOf[RevokeAccess], classOf[AddUser],
-    classOf[SetPassword], classOf[BlockUser], classOf[UnblockUser], classOf[AddBot], classOf[DeleteBot],
-    classOf[AddSubreddit], classOf[DeleteSubreddit], classOf[AddExemptUser], classOf[DeleteExemptUser],
-    classOf[AddBannedPhrase], classOf[DeleteBannedPhrase])
-
-  val userAccesibleQueryTypes = List(classOf[CheckCredentials], classOf[ShowUsersAndAccess], classOf[ListBots],
-    classOf[ShowAccessForUser], classOf[ListSubreddits], classOf[ListExemptUsers], classOf[ListBannedPhrases])
-
-  val responseTypes = List(classOf[SessionStarted], classOf[CommandSucceeded],
-    classOf[CommandFailed], classOf[PermissionsResult], classOf[BotsResult], classOf[SubredditsResult],
-    classOf[ExemptUsersResult], classOf[BannedPhrasesResult])
-}
 
 class AdminCommandPersister extends Processor {
   private case class Context(bot: String, subreddit: String)
@@ -164,7 +86,7 @@ class AdminCommandPersister extends Processor {
 
     case PrecheckCommand(c@GrantAccess(sessionId, username, bot, subreddit, permission)) => withSession(sessionId, sourceUsername =>
       withSession(sessionId, sourceUser =>
-        if (hasPermission(sourceUser, bot, subreddit, GrantAccessPermission) == NoAccess)
+        if (hasPermission(sourceUser, bot, subreddit, GrantAccessPermission()) == NoAccess)
           sender() ! CommandFailed("Permission denied")
         else users.get(username) match {
           case None => sender() ! CommandFailed("No such target user")
@@ -184,7 +106,7 @@ class AdminCommandPersister extends Processor {
       }
 
     case PrecheckCommand(c@RevokeAccess(sessionId, username, bot, subreddit, permission)) => withSession(sessionId, sourceUsername =>
-      if (hasPermission(sourceUsername, bot, subreddit, RevokeAccessPermission) == NoAccess)
+      if (hasPermission(sourceUsername, bot, subreddit, RevokeAccessPermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else if (sourceUsername == username)
         sender() ! CommandFailed("You can't modify your own permissions")
@@ -208,7 +130,7 @@ class AdminCommandPersister extends Processor {
 
     case PrecheckCommand(c@AddUser(sessionId, username, password)) => withSession(sessionId, sourceUsername => {
       val originalSender = sender()
-      if (hasPermission(sourceUsername, "all", "all", AddUserPermission) == NoAccess)
+      if (hasPermission(sourceUsername, "all", "all", AddUserPermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else if (username.length > 20 || !username.matches("^[A-Za-z0-9\\-_]+$"))
         sender() ! CommandFailed("Invalid username")
@@ -226,11 +148,11 @@ class AdminCommandPersister extends Processor {
     case PrecheckCommand(c@SetPassword(sessionId, username, password)) => withSession(sessionId, sourceUsername => {
       val originalSender = sender()
       val actualUsername = if (username == "me") sourceUsername else username
-      if (actualUsername == username || hasPermission(sourceUsername, "all", "all", SetPasswordPermission) == NoAccess)
+      if (actualUsername != sourceUsername && hasPermission(sourceUsername, "all", "all", SetPasswordPermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else if (actualUsername == "root")
         sender() ! CommandFailed("Root password must be changed in configuration file")
-      else users.get(username) match {
+      else users.get(actualUsername) match {
         case None => sender() ! CommandFailed("No such user")
         case Some(u) => Future {
           originalSender ! CommandSucceeded(c.copy(password = BCrypt.hashpw(password, BCrypt.gensalt())))
@@ -242,7 +164,7 @@ class AdminCommandPersister extends Processor {
         users.update(username, userData.copy(encryptedPassword = encryptedPassword)))
 
     case PrecheckCommand(c@BlockUser(sessionId, username)) => withSession(sessionId, sourceUsername =>
-      if (hasPermission(sourceUsername, "all", "all", BlockUserPermission) == NoAccess)
+      if (hasPermission(sourceUsername, "all", "all", BlockUserPermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else users.get(username) match {
         case None => sender() ! CommandFailed("No such user")
@@ -256,7 +178,7 @@ class AdminCommandPersister extends Processor {
       }
 
     case PrecheckCommand(c@UnblockUser(sessionId, username)) => withSession(sessionId, sourceUsername =>
-      if (hasPermission(sourceUsername, "all", "all", UnblockUserPermission) == NoAccess)
+      if (hasPermission(sourceUsername, "all", "all", UnblockUserPermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else users.get(username) match {
         case None => sender() ! CommandFailed("No such user")
@@ -270,7 +192,7 @@ class AdminCommandPersister extends Processor {
       }
 
     case PrecheckCommand(c@AddBot(sessionId, bot, redditUsername, redditPassword)) => withSession(sessionId, sourceUsername =>
-      if (hasPermission(sourceUsername, "all", "all", AddBotPermission) == NoAccess)
+      if (hasPermission(sourceUsername, "all", "all", AddBotPermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else if (bots.get(bot).isDefined)
         sender() ! CommandFailed("Bot already exists")
@@ -282,7 +204,7 @@ class AdminCommandPersister extends Processor {
       bots.put(bot, BotData(redditUsername, redditPassword, mutable.Map()))
 
     case PrecheckCommand(c@DeleteBot(sessionId, bot)) => withSession(sessionId, sourceUsername =>
-      if (hasPermission(sourceUsername, "all", "all", DeleteBotPermission) == NoAccess)
+      if (hasPermission(sourceUsername, "all", "all", DeleteBotPermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else if (bots.get(bot).isEmpty || bot == "all")
         sender() ! CommandFailed("No such bot")
@@ -292,7 +214,7 @@ class AdminCommandPersister extends Processor {
       bots.remove(bot)
 
     case PrecheckCommand(c@AddSubreddit(sessionId, bot, subreddit)) => withSession(sessionId, sourceUsername =>
-      if (hasPermission(sourceUsername, bot, "all", AddSubredditPermission) == NoAccess)
+      if (hasPermission(sourceUsername, bot, "all", AddSubredditPermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else if (subreddit == "friends" || subreddit == "all" || !subreddit.matches("^[A-Za-z0-9][A-Za-z0-9_]{2,20}$"))
         sender() ! CommandFailed("Invalid subreddit name")
@@ -306,7 +228,7 @@ class AdminCommandPersister extends Processor {
       bots.get(bot).foreach(botData => botData.subreddits.put(subreddit, defaultSubredditData()))
 
     case PrecheckCommand(c@DeleteSubreddit(sessionId, bot, subreddit)) => withSession(sessionId, sourceUsername =>
-      if (hasPermission(sourceUsername, bot, "all", DeleteSubredditPermission) == NoAccess)
+      if (hasPermission(sourceUsername, bot, "all", DeleteSubredditPermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else if (subreddit == "all")
         sender() ! CommandFailed("No such subreddit")
@@ -316,7 +238,7 @@ class AdminCommandPersister extends Processor {
       bots.get(bot).foreach(botData => botData.subreddits.remove(subreddit))
 
     case PrecheckCommand(c@AddExemptUser(sessionId, bot, subreddit, username)) => withSession(sessionId, sourceUsername =>
-      if (hasPermission(sourceUsername, bot, subreddit, AddExemptUserPermission) == NoAccess)
+      if (hasPermission(sourceUsername, bot, subreddit, AddExemptUserPermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else if (!validRedditUsername(username))
         sender() ! CommandFailed("Not a valid reddit username")
@@ -331,7 +253,7 @@ class AdminCommandPersister extends Processor {
         subredditData.exemptUsers += username))
 
     case PrecheckCommand(c@DeleteExemptUser(sessionId, bot, subreddit, username)) => withSession(sessionId, sourceUsername =>
-      if (hasPermission(sourceUsername, bot, subreddit, DeleteExemptUserPermission) == NoAccess)
+      if (hasPermission(sourceUsername, bot, subreddit, DeleteExemptUserPermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else withPrecheckSubreddit(bot, subreddit, (botData, subredditData) =>
         if (subredditData.exemptUsers.contains(username))
@@ -344,7 +266,7 @@ class AdminCommandPersister extends Processor {
         subredditData.exemptUsers.remove(username)))
 
     case PrecheckCommand(c@AddBannedPhrase(sessionId, bot, subreddit, phrase)) => withSession(sessionId, sourceUsername =>
-      if (hasPermission(sourceUsername, bot, subreddit, AddBannedPhrasePermission) == NoAccess)
+      if (hasPermission(sourceUsername, bot, subreddit, AddBannedPhrasePermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else if (phrase.length > 256)
         sender() ! CommandFailed("Phrase too long")
@@ -359,7 +281,7 @@ class AdminCommandPersister extends Processor {
         subredditData.bannedPhrases += phrase))
 
     case PrecheckCommand(c@DeleteBannedPhrase(sessionId, bot, subreddit, phrase)) => withSession(sessionId, sourceUsername =>
-      if (hasPermission(sourceUsername, bot, subreddit, DeleteBannedPhrasePermission) == NoAccess)
+      if (hasPermission(sourceUsername, bot, subreddit, DeleteBannedPhrasePermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else withPrecheckSubreddit(bot, subreddit, (botData, subredditData) =>
         if (subredditData.bannedPhrases.contains(phrase))
@@ -380,48 +302,50 @@ class AdminCommandPersister extends Processor {
       } else users.get(sourceUsername) match {
         case None => sender() ! CommandFailed("No such user")
         case Some(userData) if userData.blocked => sender() ! CommandFailed("Account disabled")
-        case Some(userData) if BCrypt.checkpw(password, userData.encryptedPassword) =>
+        case Some(userData) if !BCrypt.checkpw(password, userData.encryptedPassword) =>
           sender() ! CommandFailed("Invalid password")
         case _ => sender() ! CredentialsValid
       }
 
     case ShowUsersAndAccess(sessionId, bot, subreddit) => withSession(sessionId, sourceUsername =>
-      if (hasPermission(sourceUsername, bot, subreddit, ShowUsersAndAccessPermission) == NoAccess)
+      if (hasPermission(sourceUsername, bot, subreddit, ShowUsersAndAccessPermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else withPrecheckSubreddit(bot, subreddit, (botData, subredditData) =>
         sender() ! PermissionsResult(users.flatMap { case (username, userData) => userData.permissions
           .filter {
             case (permContext, _) => permContext.bot == bot && permContext.subreddit == subreddit
-          }.map { case (_, permission) => permission }}.toList)
+          }.map { case (_, permission) => permission.getClass.getSimpleName }}.toList)
       ))
 
     case ShowAccessForUser(sessionId, user) => withSession(sessionId, sourceUsername => {
       val actualUser = if (user == "me") sourceUsername else user
+      val possiblePermissions = CommandInfo.permissionNames
       if (sourceUsername != actualUser &&
-        hasPermission(sourceUsername, "all", "all", ShowAccessForUserPermission) == NoAccess)
+        hasPermission(sourceUsername, "all", "all", ShowAccessForUserPermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else if (actualUser == "root") {
-        sender() ! PermissionsForUserResult("root", List(), "Root has full irrevocable access to all functions")
+        sender() ! PermissionsForUserResult("root", List(), "Root has full irrevocable access to all functions",
+          possiblePermissions)
       } else users.get(actualUser) match {
           case None =>
             sender() ! CommandFailed("No such user")
           case Some(userData) =>
             sender() ! PermissionsForUserResult(actualUser, userData.permissions.toList.map (permission =>
-              PermissionForUser(permission._2.toString, permission._1.bot, permission._1.subreddit)
-            ), if (userData.blocked) "Blocked" else "Active")
+              PermissionForUser(permission._2.getClass.getSimpleName, permission._1.bot, permission._1.subreddit)
+            ), if (userData.blocked) "Blocked" else "Active", possiblePermissions)
         }
       }
     )
 
     case ListBots(sessionId) => withSession(sessionId, sourceUsername =>
-      if (hasPermission(sourceUsername, "all", "all", ListBotsPermission) == NoAccess)
+      if (hasPermission(sourceUsername, "all", "all", ListBotsPermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else sender() ! BotsResult(bots.map {
         case (botName, _) => botName
       }.toList))
 
     case ListSubreddits(sessionId, bot) => withSession(sessionId, sourceUsername =>
-      if (hasPermission(sourceUsername, bot, "all", ListSubredditsPermission) == NoAccess)
+      if (hasPermission(sourceUsername, bot, "all", ListSubredditsPermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else if (bot == "all")
         sender() ! CommandFailed("Listing subreddits on all not supported")
@@ -433,14 +357,14 @@ class AdminCommandPersister extends Processor {
       })
 
     case ListExemptUsers(sessionId, bot, subreddit) => withSession(sessionId, sourceUsername =>
-      if (hasPermission(sourceUsername, bot, subreddit, ListExemptUsersPermission) == NoAccess)
+      if (hasPermission(sourceUsername, bot, subreddit, ListExemptUsersPermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else withPrecheckSubreddit(bot, subreddit, (botData, subredditData) =>
         sender() ! ExemptUsersResult(subredditData.exemptUsers.toList)
       ))
 
     case ListBannedPhrases(sessionId, bot, subreddit) => withSession(sessionId, sourceUsername =>
-      if (hasPermission(sourceUsername, bot, subreddit, ListBannedPhrasesPermission) == NoAccess)
+      if (hasPermission(sourceUsername, bot, subreddit, ListBannedPhrasesPermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else withPrecheckSubreddit(bot, subreddit, (botData, subredditData) =>
         sender() ! ExemptUsersResult(subredditData.exemptUsers.toList)
