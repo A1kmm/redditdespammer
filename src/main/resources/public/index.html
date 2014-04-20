@@ -80,22 +80,24 @@
       <div class="panel panel-default">
         <div class="panel-heading">User details</div>
         <div class="panel-body">
-          <table>
-            <tr><th>Username</th><td>{{username}}</td></tr>
+          <table class="table">
+            <tr><th>Username</th><td>{{username}}</td><td></td></tr>
             <tr><th>Status</th>
                 <td>{{status}}</td>
                 <td>
                   {{#if canBlock}}
-                    Block button
+                    <button class="btn btn-danger" {{action "blockUser"}}>Block</button>
                   {{else}}
                     {{#if canUnblock}}
-                      Unblock button
+                      <button class="btn btn-danger" {{action "unblockUser"}}>Unblock</button>
                     {{/if}}
                   {{/if}}
                 </td>
             </tr>
             {{#each permissions}}
-              <tr><th>{{permission}}, bot {{bot}}, subreddit {{subreddit}}</th><td>Yes</td></tr>
+              <tr><th>{{permission}}, bot {{bot}}, subreddit {{subreddit}}</th><td>Yes</td>
+                <td>Delete Permission</td>
+              </tr>
             {{/each}}
           </table>
         </div>
@@ -144,12 +146,16 @@
     </div>
     {{/rd-authpage}}
   </script>
-  <script type="text/javascript" src="jquery-2.1.0.min.js"></script>
+  <script type="text/javascript" src="thirdparty/jquery-2.1.0.min.js"></script>
   <script type="text/javascript" src="bootstrap-3.1.1-dist/js/bootstrap.js"></script>
-  <script type="text/javascript" src="handlebars-v1.3.0.js"></script>
-  <script type="text/javascript" src="lodash.min.js"></script>
-  <script type="text/javascript" src="ember.js"></script>
-  <script type="text/javascript" src="ember-data.min.js"></script>
+  <script type="text/javascript" src="thirdparty/handlebars-v1.3.0.js"></script>
+  <script type="text/javascript" src="thirdparty/lodash.min.js"></script>
+  <script type="text/javascript" src="thirdparty/ember.js"></script>
+  <script type="text/javascript" src="thirdparty/ember-data.min.js"></script>
   <script type="text/javascript" src="app.js"></script>
+  <script type="text/javascript" src="validator.js"></script>
+  <script type="text/javascript" src="ioutils.js"></script>
+  <script type="text/javascript" src="login.js"></script>
+  <script type="text/javascript" src="user.js"></script>
   </body>
 </html>
