@@ -120,7 +120,7 @@
           {{#rd-form-i submitName="Add" submit="addPermission" disabled=addPermissionInvalid}}
             {{rd-control-i type="text" inpname="bot" descr="Bot (or all)" attr=bot error=botError valid=botValid}}
             {{rd-control-i type="text" inpname="subreddit" descr="Subreddit (or all)" attr=subreddit error=subredditError valid=subredditValid}}
-            {{view Ember.Select content=possiblePermissions value=permission}}
+            {{view Ember.Select content=possiblePermissions value=permission classNames="form-control"}}
           {{/rd-form-i}}
         </div>
       </div>
@@ -158,11 +158,19 @@
         <div class="panel">
           <div class="panel-heading">List of bots</div>
           <div class="panel-body">
-            <ul class="list-group">
+            <table class="table">
+            <thead>
+                <tr><th>Bot Name</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
             {{#each bot in bots}}
-              <li class="list-group-item">{{#link-to 'bot' bot 1}}{{bot}}{{/link-to}}</li>
+              <tr><td>{{#link-to 'bot' bot 1}}{{bot}}{{/link-to}}</td><td>
+                <button class="btn btn-danger" {{action "deleteBot" bot}}>
+                  <span class="glyphicon glyphicon-trash"/> Delete
+                </button>
+              </td></tr>
             {{/each}}
-            </ul>
+            </tbody></table>
           </div>
         </div>
       {{/rd-authpage}}
@@ -177,11 +185,19 @@
         <div class="panel">
           <div class="panel-heading">List of subreddits</div>
           <div class="panel-body">
-            <ul class="list-group">
+            <table class="table">
+            <thead>
+                <tr><th>Bot Name</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
             {{#each subreddit in subreddits}}
-              <li class="list-group-item">{{#link-to 'subreddit' botParam subreddit 1}}{{subreddit}}{{/link-to}}</li>
+              <tr><td>{{#link-to 'subreddit' botParam subreddit 1}}{{subreddit}}{{/link-to}}</td><td>
+                <button class="btn btn-danger" {{action "deleteSubreddit" subreddit}}>
+                  <span class="glyphicon glyphicon-trash"/> Delete
+                </button>
+              </td></tr>
             {{/each}}
-            </ul>
+            </tbody></table>
           </div>
         </div>
       {{/rd-authpage}}
@@ -266,7 +282,7 @@
             {{#rd-form-i submitName="Grant Permission" submit="addPermission" disabled=grantUsernameInvalid}}
                 {{rd-control-i inpname="grantUsername" descr="Username" attr=grantUsername
                     error=grantUsernameError valid=grantUsernameValid}}
-                {{view Ember.Select content=usersAndAccess.possiblePermissions value=permission}}
+                {{view Ember.Select content=usersAndAccess.possiblePermissions value=permission classNames="form-control"}}
             {{/rd-form-i}}
           </div>
         </div>

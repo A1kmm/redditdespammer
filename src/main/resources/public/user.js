@@ -45,7 +45,9 @@ App.UserController = Ember.ObjectController.extend({
               .then(function(resp) {
                 if (resp.success) {
                     $('#createUserDialog').modal('hide');
-                    controller.transitionToRoute('user', controller.get('newUsername'), util.randomVersion());
+                    setTimeout(function() {
+                        controller.transitionToRoute('user', controller.get('newUsername'), util.randomVersion());
+                    }, 0);
                 } else {
                     controller.set('createError', resp.message);
                 }

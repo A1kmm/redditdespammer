@@ -20,6 +20,17 @@ App.BotsController = Ember.ObjectController.extend({
                     controller.set('error', resp.message);
                 }
               });
+        },
+        deleteBot: function(bot) {
+            var controller = this;
+            util.sendCommand({type: "DeleteBot", bot: bot })
+              .then(function(resp) {
+                if (resp.success) {
+                    controller.transitionToRoute('bots', util.randomVersion());
+                } else {
+                    controller.set('error', resp.message);
+                }
+              });
         }
     }
 });
@@ -46,6 +57,17 @@ App.BotController = Ember.ObjectController.extend({
                 if (resp.success) {
                     controller.transitionToRoute('subreddit', controller.get('botParam'), controller.get('subreddit'),
                         util.randomVersion());
+                } else {
+                    controller.set('error', resp.message);
+                }
+              });
+        },
+        deleteSubreddit: function(subreddit) {
+            var controller = this;
+            util.sendCommand({type: "DeleteSubreddit", bot: this.get('botParam'), subreddit: subreddit })
+              .then(function(resp) {
+                if (resp.success) {
+                    controller.transitionToRoute('bot', controller.get('botParam'), util.randomVersion());
                 } else {
                     controller.set('error', resp.message);
                 }
