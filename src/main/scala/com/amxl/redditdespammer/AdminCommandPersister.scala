@@ -22,6 +22,23 @@ case object BotwideAccess extends PermissionScope
 case object GlobalAccess extends PermissionScope
 case object NoAccess extends PermissionScope
 
+case class SubscribeToBots()
+case class SubscribeToSubreddits(onBot: String)
+
+case class BotAdded(botName: String, botRedditUsername: String, botRedditPassword: String)
+case class BotRemoved(botName: String)
+case class SubredditAdded(subredditName: String)
+case class SubredditRemoved(subredditName: String)
+
+case class QueryUserExempt(user: String, bot: String, subreddit: String)
+case class CheckString(str: String, bot: String, subreddit: String)
+
+case object UserExempt
+case object UserNotExempt
+
+case object StringBanned
+case object StringNotBanned
+
 class AdminCommandPersister extends Processor {
   private case class Context(bot: String, subreddit: String)
   private case class UserData(encryptedPassword: String, permissions: mutable.Set[(Context, Permission)],
@@ -30,14 +47,16 @@ class AdminCommandPersister extends Processor {
 
   private case class SubredditData(exemptUsers: mutable.Set[String], bannedPhrases: mutable.Set[String])
   private case class BotData(redditUsername: String, redditPassword: String,
-                             subreddits: mutable.Map[String, SubredditData])
+                             subreddits: mutable.Map[String, SubredditData],
+                             subredditSubscribers: mutable.HashSet[ActorRef])
   private val bots: mutable.Map[String, BotData] = mutable.Map("all" -> defaultBotData("", ""))
+  private var botSubscribers: List[ActorRef] = List.empty
 
   private val sessionToUsername: mutable.Map[String, String] = mutable.Map.empty
 
   private def defaultSubredditData(): SubredditData = SubredditData(mutable.Set(), mutable.Set())
   private def defaultBotData(username: String, pwd: String): BotData = BotData(username, pwd,
-    mutable.Map("all" -> defaultSubredditData()))
+    mutable.Map("all" -> defaultSubredditData()), mutable.HashSet())
 
   private def withSession(session: String, f: String => Unit): Unit =
     sessionToUsername.get(session) match {
@@ -83,6 +102,38 @@ class AdminCommandPersister extends Processor {
       sessionToUsername.put(sessionId, username)
     case SessionEnded(sessionId) =>
       sessionToUsername.remove(sessionId)
+
+    case SubscribeToBots() =>
+      bots foreach { bot =>
+        sender() ! BotAdded(bot._1, bot._2.redditUsername, bot._2.redditPassword)
+      }
+      botSubscribers = botSubscribers :+ sender()
+    case SubscribeToSubreddits(onBot) =>
+      bots.get(onBot) match {
+        case None =>
+        case Some(botData) =>
+          botData.subreddits foreach { subreddit =>
+            sender() ! SubredditAdded(subreddit._1)
+          }
+          botData.subredditSubscribers += sender()
+      }
+
+    case QueryUserExempt(user, bot, subreddit) =>
+      val exempt = List(("all", "all"), (bot, "all"), (bot, subreddit)).exists { case (theBot, theSubreddit) =>
+        (for (botData <- bots.get(theBot);
+             subredditData <- botData.subreddits.get(theSubreddit)
+         ) yield subredditData.exemptUsers.contains(user.toUpperCase)).getOrElse(false)
+      }
+      sender() ! (if (exempt) UserExempt else UserNotExempt)
+    case CheckString(str, bot, subreddit) =>
+      val ustr = str.toUpperCase
+      val banned = List(("all", "all"), (bot, "all"), (bot, subreddit)).exists { case (theBot, theSubreddit) =>
+        (for (botData <- bots.get(theBot);
+              subredditData <- botData.subreddits.get(theSubreddit)
+        ) yield subredditData.bannedPhrases.exists(p => ustr.contains(p.toUpperCase))).getOrElse(false)
+      }
+      sender() ! (if (banned) StringBanned else StringNotBanned)
+
 
     case PrecheckCommand(c@GrantAccess(sessionId, username, bot, subreddit, permission)) => withSession(sessionId, sourceUsername =>
       withSession(sessionId, sourceUser =>
@@ -201,7 +252,10 @@ class AdminCommandPersister extends Processor {
       else
         sender() ! CommandSucceeded(c))
     case Persistent(AddBot(_, bot, redditUsername, redditPassword), _) =>
-      bots.put(bot, BotData(redditUsername, redditPassword, mutable.Map()))
+      bots.put(bot, BotData(redditUsername, redditPassword, mutable.Map(), mutable.HashSet()))
+      botSubscribers foreach { subscriber =>
+        subscriber ! BotAdded(bot, redditUsername, redditPassword)
+      }
 
     case PrecheckCommand(c@DeleteBot(sessionId, bot)) => withSession(sessionId, sourceUsername =>
       if (hasPermission(sourceUsername, "all", "all", DeleteBotPermission()) == NoAccess)
@@ -212,6 +266,9 @@ class AdminCommandPersister extends Processor {
         sender() ! CommandSucceeded(c))
     case Persistent(DeleteBot(_, bot), _) =>
       bots.remove(bot)
+      botSubscribers foreach { subscriber =>
+        subscriber ! BotRemoved(bot)
+      }
 
     case PrecheckCommand(c@AddSubreddit(sessionId, bot, subreddit)) => withSession(sessionId, sourceUsername =>
       if (hasPermission(sourceUsername, bot, "all", AddSubredditPermission()) == NoAccess)
@@ -225,7 +282,12 @@ class AdminCommandPersister extends Processor {
         case _ => sender() ! CommandSucceeded(c)
       })
     case Persistent(AddSubreddit(_, bot, subreddit), _) =>
-      bots.get(bot).foreach(botData => botData.subreddits.put(subreddit, defaultSubredditData()))
+      bots.get(bot).foreach(botData => {
+        botData.subreddits.put(subreddit, defaultSubredditData())
+        botData.subredditSubscribers foreach { subscriber =>
+          subscriber ! SubredditAdded(subreddit)
+        }
+      })
 
     case PrecheckCommand(c@DeleteSubreddit(sessionId, bot, subreddit)) => withSession(sessionId, sourceUsername =>
       if (hasPermission(sourceUsername, bot, "all", DeleteSubredditPermission()) == NoAccess)
@@ -235,7 +297,12 @@ class AdminCommandPersister extends Processor {
       else withPrecheckSubreddit(bot, subreddit, (botData, subredditData) =>
         sender() ! CommandSucceeded(c)))
     case Persistent(DeleteSubreddit(_, bot, subreddit), _) =>
-      bots.get(bot).foreach(botData => botData.subreddits.remove(subreddit))
+      bots.get(bot).foreach(botData => {
+        botData.subreddits.remove(subreddit)
+        botData.subredditSubscribers foreach { subscriber =>
+          subscriber ! SubredditRemoved(subreddit)
+        }
+      })
 
     case PrecheckCommand(c@AddExemptUser(sessionId, bot, subreddit, username)) => withSession(sessionId, sourceUsername =>
       if (hasPermission(sourceUsername, bot, subreddit, AddExemptUserPermission()) == NoAccess)
@@ -243,27 +310,27 @@ class AdminCommandPersister extends Processor {
       else if (!validRedditUsername(username))
         sender() ! CommandFailed("Not a valid reddit username")
       else withPrecheckSubreddit(bot, subreddit, (botData, subredditData) =>
-        if (subredditData.exemptUsers.contains(username))
+        if (subredditData.exemptUsers.contains(username.toUpperCase))
           sender() ! CommandFailed("User already exempt")
         else
           sender() ! CommandSucceeded(c)
       ))
     case Persistent(AddExemptUser(_, bot, subreddit, username), _) =>
       bots.get(bot).foreach(botData => botData.subreddits.get(subreddit).foreach(subredditData =>
-        subredditData.exemptUsers += username))
+        subredditData.exemptUsers += username.toUpperCase))
 
     case PrecheckCommand(c@DeleteExemptUser(sessionId, bot, subreddit, username)) => withSession(sessionId, sourceUsername =>
       if (hasPermission(sourceUsername, bot, subreddit, DeleteExemptUserPermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else withPrecheckSubreddit(bot, subreddit, (botData, subredditData) =>
-        if (subredditData.exemptUsers.contains(username))
+        if (subredditData.exemptUsers.contains(username.toUpperCase))
           sender() ! CommandSucceeded(c)
         else
           sender() ! CommandFailed("User not exempt")
       ))
     case Persistent(DeleteExemptUser(_, bot, subreddit, username), _) =>
       bots.get(bot).foreach(botData => botData.subreddits.get(subreddit).foreach(subredditData =>
-        subredditData.exemptUsers.remove(username)))
+        subredditData.exemptUsers.remove(username.toUpperCase)))
 
     case PrecheckCommand(c@AddBannedPhrase(sessionId, bot, subreddit, phrase)) => withSession(sessionId, sourceUsername =>
       if (hasPermission(sourceUsername, bot, subreddit, AddBannedPhrasePermission()) == NoAccess)

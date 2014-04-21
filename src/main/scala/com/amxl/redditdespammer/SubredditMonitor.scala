@@ -20,18 +20,26 @@ class SubredditMonitor(redditClient: ActorRef, postMonitor: ActorRef, subreddit:
     case RefreshNow() =>
       val limit = Seq("limit" -> "100")
       val params : Seq[(String, String)]= limit ++ (seenUpTo match {
-        case Some(after) => Seq("after" -> after)
+        case Some(after) => Seq("before" -> after)
         case _ => Seq()
       })
       redditClient ! SendRequest("/r/" + subreddit + "/new.json", HttpMethods.GET, params)
     case RedditResponse(value) =>
-      (value \\ "data" \\ "children").asInstanceOf[JArray].arr.foreach(item => {
-        val post = (item \\ "data").extract[RedditPost]
+      (value \ "data" \ "children").asInstanceOf[JArray].arr.reverse.foreach(item => {
+        val post = (item \ "data").extract[RedditPost]
         seenUpTo = Some(post.name)
         if (!post.hidden && (post.approved_by == null || post.approved_by.length == 0))
           postMonitor ! post
       })
     case RedditFailure(msg) =>
       log.warning("Reddit Error refreshing: {}", msg)
+    case SubredditRemoved(_) =>
+      context.stop(self)
+    // This works around a corner case where the last seen post is removed. In this case, reddit will never return any
+    // posts in the list after because it treats it as no longer being in the list. In this case, we just start over
+    // from the most recent posts.
+    case FixupNext(nowInvalidName) =>
+      if (Some(nowInvalidName) == seenUpTo)
+        seenUpTo = None
   }
 }
