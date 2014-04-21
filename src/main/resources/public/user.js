@@ -69,9 +69,50 @@ App.UserController = Ember.ObjectController.extend({
         },
         addPermission: function() {
             var controller = this;
-            util.sendCommand({type: "GrantAccess", username: this.get('username'),
+            util.sendCommand({type: "GrantAccess", username: this.get('userparam'),
                          bot: this.get('bot'), subreddit: this.get('subreddit'),
                          permission: {type: this.get('permission')}})
+                .then(function(resp) {
+                    if (resp.success) {
+                       controller.transitionToRoute('user', controller.get('userparam'), util.randomVersion());
+                    } else {
+                        controller.set('success', '');
+                        controller.set('error', resp.message);
+                    }
+                });
+        },
+
+        blockUser: function() {
+            var controller = this;
+            util.sendCommand({type: "BlockUser", username: this.get('userparam')})
+                .then(function(resp) {
+                    if (resp.success) {
+                       controller.transitionToRoute('user', controller.get('userparam'), util.randomVersion());
+                    } else {
+                        controller.set('success', '');
+                        controller.set('error', resp.message);
+                    }
+                });
+        },
+
+        unblockUser: function() {
+            var controller = this;
+            util.sendCommand({type: "UnblockUser", username: this.get('userparam')})
+                .then(function(resp) {
+                    if (resp.success) {
+                       controller.transitionToRoute('user', controller.get('userparam'), util.randomVersion());
+                    } else {
+                        controller.set('success', '');
+                        controller.set('error', resp.message);
+                    }
+                });
+        },
+
+        revokePermission: function(permission) {
+            var controller = this;
+            util.sendCommand({type: "RevokeAccess", username: this.get('userparam'),
+                         bot: permission.bot, subreddit: permission.subreddit,
+                         permission: {type: permission.permission}})
                 .then(function(resp) {
                     if (resp.success) {
                        controller.transitionToRoute('user', controller.get('userparam'), util.randomVersion());

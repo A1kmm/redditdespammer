@@ -8,6 +8,9 @@ if (localStorage != null) {
 App.Router.map(function() {
   this.resource('login', { path: '/login' });
   this.resource('user', { path: '/user/:user/:version' });
+  this.resource('bots', { path: '/botlist/:version' });
+  this.resource('bot', { path: '/bot/:bot/:version' });
+  this.resource('subreddit', { path: '/subreddit/:bot/:subreddit/:version' });
 });
 
 App.IndexRoute = Ember.Route.extend({

@@ -13,6 +13,9 @@
 .fullheight {
   height: 100%;
 }
+.vspace {
+  height: 5px;
+}
 body > .ember-view {
   height: 100%;
 }

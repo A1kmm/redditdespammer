@@ -76,7 +76,7 @@ class AdminCommandPersister extends Processor {
       }
 
   private def validRedditUsername(redditUsername: String): Boolean =
-    redditUsername.contains(' ') || !(redditUsername matches "^[\\w-]{3,20}$")
+    !redditUsername.contains(' ') && (redditUsername matches "^[\\w-]{3,20}$")
 
   def receive = {
     case SessionStarted(username, sessionId) =>
@@ -114,10 +114,10 @@ class AdminCommandPersister extends Processor {
         sender() ! CommandFailed("You can't revoke a permission you don't have yourself")
       else if (hasPermission(username, bot, subreddit, permission) == NoAccess)
         sender() ! CommandFailed("User doesn't have that permission")
-      else if (bot != "all" && hasPermission(sourceUsername, "all", "all", permission) != NoAccess)
+      else if (bot != "all" && hasPermission(username, "all", "all", permission) != NoAccess)
         sender() ! CommandFailed("User has global access to that permission; revoke that first")
-      else if ((bot != "all" || subreddit != "all") &&
-        hasPermission(sourceUsername, bot, "all", permission) != NoAccess)
+      else if ((bot != "all" && subreddit != "all") &&
+        hasPermission(username, bot, "all", permission) != NoAccess)
         sender() ! CommandFailed("User has bot-level access to that permission; revoke that first")
       else
         sender() ! CommandSucceeded(c))
@@ -314,7 +314,8 @@ class AdminCommandPersister extends Processor {
         sender() ! PermissionsResult(users.flatMap { case (username, userData) => userData.permissions
           .filter {
             case (permContext, _) => permContext.bot == bot && permContext.subreddit == subreddit
-          }.map { case (_, permission) => permission.getClass.getSimpleName }}.toList)
+          }.map { case (_, permission) => PermissionForSubreddit(username, permission.getClass.getSimpleName) }}.toList,
+          CommandInfo.permissionNames)
       ))
 
     case ShowAccessForUser(sessionId, user) => withSession(sessionId, sourceUsername => {
@@ -351,7 +352,7 @@ class AdminCommandPersister extends Processor {
         sender() ! CommandFailed("Listing subreddits on all not supported")
       else bots.get(bot) match {
         case None => sender() ! CommandFailed("No such bot")
-        case Some(botData) => sender() ! SubredditsResult(botData.subreddits.map {
+        case Some(botData) => sender() ! SubredditsResult("all" :: botData.subreddits.map {
           case (subreddit, _) => subreddit
         }.toList)
       })
@@ -367,7 +368,7 @@ class AdminCommandPersister extends Processor {
       if (hasPermission(sourceUsername, bot, subreddit, ListBannedPhrasesPermission()) == NoAccess)
         sender() ! CommandFailed("Permission denied")
       else withPrecheckSubreddit(bot, subreddit, (botData, subredditData) =>
-        sender() ! ExemptUsersResult(subredditData.exemptUsers.toList)
+        sender() ! BannedPhrasesResult(subredditData.bannedPhrases.toList)
       ))
   }
 }

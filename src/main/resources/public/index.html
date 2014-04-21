@@ -22,6 +22,7 @@
           <h1>Management Console</h1>
           <ul class="nav">
             <li><a href="#/user/me/1">Users</a></li>
+            <li><a href="#/botlist/1">Bots</a></li>
           </ul>
         </div>
         <div class="col-md-9 contentarea">
@@ -86,17 +87,17 @@
                 <td>{{status}}</td>
                 <td>
                   {{#if canBlock}}
-                    <button class="btn btn-danger" {{action "blockUser"}}>Block</button>
+                    <button class="btn btn-danger" {{action "blockUser"}}><span class="glyphicon glyphicon-ban-circle"/> Block</button>
                   {{else}}
                     {{#if canUnblock}}
-                      <button class="btn btn-danger" {{action "unblockUser"}}>Unblock</button>
+                      <button class="btn btn-danger" {{action "unblockUser"}}><span class="glyphicon glyphicon-ok-circle"/> Unblock</button>
                     {{/if}}
                   {{/if}}
                 </td>
             </tr>
-            {{#each permissions}}
-              <tr><th>{{permission}}, bot {{bot}}, subreddit {{subreddit}}</th><td>Yes</td>
-                <td>Delete Permission</td>
+            {{#each permission in permissions}}
+              <tr><th>{{permission.permission}}, bot {{permission.bot}}, subreddit {{permission.subreddit}}</th><td>Yes</td>
+                <td><button class="btn btn-danger" {{action "revokePermission" permission}}><span class="glyphicon glyphicon-trash"/> Revoke</button></td>
               </tr>
             {{/each}}
           </table>
@@ -146,16 +147,144 @@
     </div>
     {{/rd-authpage}}
   </script>
+  <script type="text/x-handlebars" data-template-name="bots">
+      {{#rd-authpage title="Manage bots" error=error success=success}}
+        {{#rd-form-i submitName="Create bot" submit="createBot" disabled=invalid }}
+          {{rd-control-i type="text" inpname="botName" descr="Bot Name" attr=botName error=botNameError valid=botNameValid}}
+          {{rd-control-i type="text" inpname="redditUsername" descr="Reddit Username" attr=redditUsername error=redditUsernameError valid=redditUsernameValid}}
+          {{rd-control-i type="password" inpname="redditPassword" descr="Reddit Password" attr=redditPassword error=redditPasswordError valid=redditPasswordValid}}
+        {{/rd-form-i}}
+        <div class="vspace">&nbsp;</div>
+        <div class="panel">
+          <div class="panel-heading">List of bots</div>
+          <div class="panel-body">
+            <ul class="list-group">
+            {{#each bot in bots}}
+              <li class="list-group-item">{{#link-to 'bot' bot 1}}{{bot}}{{/link-to}}</li>
+            {{/each}}
+            </ul>
+          </div>
+        </div>
+      {{/rd-authpage}}
+  </script>
+  <script type="text/x-handlebars" data-template-name="bot">
+      {{#rd-authpage title="View bot" error=error success=success}}
+        {{#if canAddSubreddit}}
+            {{#rd-form-i submitName="Create subreddit" submit="createSubreddit" disabled=invalid }}
+              {{rd-control-i type="text" inpname="subreddit" descr="Subreddit" attr=subreddit error=subredditError valid=subredditValid}}
+            {{/rd-form-i}}
+        {{/if}}
+        <div class="panel">
+          <div class="panel-heading">List of subreddits</div>
+          <div class="panel-body">
+            <ul class="list-group">
+            {{#each subreddit in subreddits}}
+              <li class="list-group-item">{{#link-to 'subreddit' botParam subreddit 1}}{{subreddit}}{{/link-to}}</li>
+            {{/each}}
+            </ul>
+          </div>
+        </div>
+      {{/rd-authpage}}
+  </script>
+  <script type="text/x-handlebars" data-template-name="subreddit">
+      {{#rd-authpage title="View Subreddit" error=error success=success}}
+        <h2>Subreddit {{subredditParam}} on {{botParam}}</h2>
+        <div class="panel">
+          <div class="panel-heading">Banned Phrases</div>
+          <div class="panel-body">
+            {{#if bannedPhrases.msg.length}}
+            <div class="alert alert-danger">{{bannedPhrases.msg}}</div>
+            {{/if}}
+            {{#unless bannedPhrases.panelError}}
+              <table class="table">
+                <thead>
+                    <tr><th>Phrase</th><th>Actions</th></tr>
+                </thead>
+                <tbody>
+              {{#each phrase in bannedPhrases.phrases }}
+                <tr><td>{{phrase}}</td>
+                    <td><button class="btn btn-danger" {{action "deleteBannedPhrase" phrase}}>
+                        <span class="glyphicon glyphicon-trash"/> Delete</button></td>
+                </tr>
+              {{/each}}
+                </tbody>
+              </table>
+            {{/unless}}
+            {{#rd-form-i submitName="Add Banned Phrase" submit="addBannedPhrase" disabled=newBannedPhraseInvalid}}
+                {{rd-control-i inpname="bannedPhrase" descr="Banned Phrase" attr=newBannedPhrase
+                    error=newBannedPhraseError valid=newBannedPhraseValid}}
+            {{/rd-form-i}}
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-heading">Exempt Reddit Users</div>
+          <div class="panel-body">
+            {{#if exemptUsers.msg.length}}
+            <div class="alert alert-danger">{{exemptUsers.msg}}</div>
+            {{/if}}
+            {{#unless exemptUsers.panelError}}
+              <table class="table">
+                <thead>
+                    <tr><th>User</th><th>Actions</th></tr>
+                </thead>
+                <tbody>
+                  {{#each user in exemptUsers.users }}
+                    <tr><td>{{user}}</td>
+                        <td><button class="btn btn-danger" {{action "deleteExemptUser" user}}>
+                            <span class="glyphicon glyphicon-trash"/> Delete</button></td>
+                    </tr>
+                  {{/each}}
+                </tbody>
+              </table>
+            {{/unless}}
+            {{#rd-form-i submitName="Add Exempt User" submit="addExemptUser" disabled=newExemptUsernameInvalid}}
+                {{rd-control-i inpname="exemptUsername" descr="Reddit Username" attr=newExemptUsername
+                    error=newExemptUsernameError valid=newExemptUsernameValid}}
+            {{/rd-form-i}}
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-heading">Bot Users with Access</div>
+          <div class="panel-body">
+            {{#if usersAndAccess.msg.length}}
+            <div class="alert alert-danger">{{usersAndAccess.msg}}</div>
+            {{/if}}
+            {{#unless usersAndAccess.panelError}}
+              <table class="table">
+                <thead><tr><th>Username</th><th>Permission</th><th>Actions</th></tr></thead>
+                <tbody>
+                  {{#each permission in usersAndAccess.permissions}}
+                  <tr><td>{{permission.username}}</td><td>{{permission.permission}}</td>
+                    <td><button class="btn btn-danger" {{action "revokePermission" permission}}>
+                      <span class="glyphicon glyphicon-trash"/> Revoke</button></td>
+                  </tr>
+                  {{/each}}
+                </tbody>
+              </table>
+            {{/unless}}
+
+            {{#rd-form-i submitName="Grant Permission" submit="addPermission" disabled=grantUsernameInvalid}}
+                {{rd-control-i inpname="grantUsername" descr="Username" attr=grantUsername
+                    error=grantUsernameError valid=grantUsernameValid}}
+                {{view Ember.Select content=usersAndAccess.possiblePermissions value=permission}}
+            {{/rd-form-i}}
+          </div>
+        </div>
+      {{/rd-authpage}}
+  </script>
   <script type="text/javascript" src="thirdparty/jquery-2.1.0.min.js"></script>
   <script type="text/javascript" src="bootstrap-3.1.1-dist/js/bootstrap.js"></script>
   <script type="text/javascript" src="thirdparty/handlebars-v1.3.0.js"></script>
   <script type="text/javascript" src="thirdparty/lodash.min.js"></script>
   <script type="text/javascript" src="thirdparty/ember.js"></script>
   <script type="text/javascript" src="thirdparty/ember-data.min.js"></script>
+  <script type="text/javascript" src="thirdparty/async.js"></script>
   <script type="text/javascript" src="app.js"></script>
   <script type="text/javascript" src="validator.js"></script>
   <script type="text/javascript" src="ioutils.js"></script>
   <script type="text/javascript" src="login.js"></script>
   <script type="text/javascript" src="user.js"></script>
+  <script type="text/javascript" src="bot.js"></script>
+  <script type="text/javascript" src="subreddit.js"></script>
   </body>
 </html>

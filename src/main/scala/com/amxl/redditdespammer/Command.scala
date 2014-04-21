@@ -56,18 +56,20 @@ case class ShowAccessForUserPermission() extends Permission
 // Don't forget to add new classes to the CommandInfo object.
 
 case class PermissionForUser(permission: String, bot: String, subreddit: String)
+case class PermissionForSubreddit(username: String, permission: String)
 
 sealed abstract class CommandResponse
 case class CommandSucceeded(followupWith: Command) extends CommandResponse
 case class CommandFailed(msg: String) extends CommandResponse
 case class CredentialsValid()
-case class PermissionsResult(permissions: List[String]) extends CommandResponse
+case class PermissionsResult(permissions: List[PermissionForSubreddit],
+                             possiblePermissions: List[String]) extends CommandResponse
 case class PermissionsForUserResult(username: String, permissions: List[PermissionForUser],
                                     status: String, possiblePermissions: List[String]) extends CommandResponse
 case class BotsResult(bots: List[String]) extends CommandResponse
 case class SubredditsResult(subreddits: List[String]) extends CommandResponse
-case class ExemptUsersResult(subreddits: List[String]) extends CommandResponse
-case class BannedPhrasesResult(subreddits: List[String]) extends CommandResponse
+case class ExemptUsersResult(users: List[String]) extends CommandResponse
+case class BannedPhrasesResult(phrases: List[String]) extends CommandResponse
 case class SessionStarted(username: String, sessionId: String) extends CommandResponse
 // Don't forget to add new classes to the CommandInfo object.
 
